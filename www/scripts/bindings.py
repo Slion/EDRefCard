@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+#!/home/lenclud/EDRefCard.slions.net/edrefcard/bin/python
 
 __version__ = '1.0.7'
 
@@ -24,7 +24,11 @@ import pickle
 import re
 from enum import Enum
 from pathlib import Path
-from urllib.parse import urljoin
+
+try:
+    from urllib.parse import urljoin
+except ImportError:
+     from urlparse import urljoin
 
 try:
     from .bindingsData import *
@@ -33,12 +37,15 @@ except: # pragma: no cover
 
 
 class Config:
+    @staticmethod
     def dirRoot():
         return Path(os.environ.get('CONTEXT_DOCUMENT_ROOT', '..')).resolve()
-        
+    
+    @staticmethod
     def webRoot():
         return urljoin(os.environ.get('SCRIPT_URI', 'https://edrefcard.info/'), '/')
     
+    @staticmethod
     def newRandom():
         config = Config(Config.randomName())
         while(config.exists()):
@@ -53,10 +60,12 @@ class Config:
     def __repr__(self):
         return "Config('%s')" % self.name
     
+    @staticmethod
     def randomName():
         name = ''.join(random.choice(string.ascii_lowercase) for x in range(6))
         return name
     
+    @staticmethod
     def configsPath():
         return Config.dirRoot() / 'configs'
         
@@ -78,22 +87,24 @@ class Config:
     def makeDir(self):
         fullPath = self.path()
         dirPath = fullPath.parent
-        dirPath.mkdir(parents=True, exist_ok=True)
+        dirPath.mkdir(parents=True)
         
     def refcardURL(self):
-        url = urljoin(Config.webRoot(), "binds/%s" % self.name)
+        url = urljoin(Config.webRoot(), "scripts/bindings.cgi?replay=%s" % self.name)
         return url
         
     def bindsURL(self):
-        url = urljoin(Config.webRoot(), "configs/%s.binds" % self.name)
+        url = urljoin(Config.webRoot(), "configs/%s/%s.binds" %(self.name[:2], self.name))
         return url
 
+    @staticmethod
     def unpickle(path):
         with path.open('rb') as file:
             object = pickle.load(file)
             object['runID'] = path.stem
         return object
-            
+    
+    @staticmethod
     def allConfigs(sortKey=None):
         configsPath = Config.configsPath()
         picklePaths = list(configsPath.glob('**/*.replay'))
@@ -102,7 +113,7 @@ class Config:
             objs.sort(key=sortKey)
         return objs
 
-	
+
 class Mode(Enum):
     blocks = 1
     list = 2
@@ -695,12 +706,12 @@ def printListItem(configObj):
             %s
         </td>
     </tr>
-    ''' % (refcardURL, html.escape(name, quote=True), controllersStr, dateStr))
+    ''' % (refcardURL, cgi.escape(name, quote=True), controllersStr, dateStr))
 
 def printList():
     print('<div id="banner"><h1>EDRefCard: public configurations</h1></div>')
     print('<p>Yes, we know this is very basic. Proper search support is coming soon.</p>')
-    objs = Config.allConfigs(sortKey=lambda obj: str(obj['description']).casefold())
+    objs = Config.allConfigs(sortKey=lambda obj: str(obj['description']).lower())
     print('<table>')
     print('''
         <tr>
@@ -761,10 +772,10 @@ def printBody(mode, config, public, createdImages, deviceForBlockImage, errors):
     # guard against bad server configs
     encoding = sys.stdout.encoding
     if encoding != 'utf-8':
-        print(f'''
-        <p>It seems that your server is configured to use encoding "{encoding}" rather than "utf-8".<br>
+        print('''
+        <p>It seems that your server is configured to use encoding "%s" rather than "utf-8".<br>
         For Apache, this can be fixed by adding <code>SetEnv PYTHONIOENCODING utf-8</code> at the end of <code>/etc/apache2/apache2.conf</code>.</p>
-        ''')
+        ''' %(encoding))
         return
     printBodyMain(mode, config, public, createdImages, deviceForBlockImage, errors)
     printSupportPara()
@@ -793,11 +804,11 @@ def printHTML(mode, config, public, createdImages, deviceForBlockImage, errors):
 def parseBindings(runId, xml, displayGroups, errors):
     parser = etree.XMLParser(encoding='utf-8')
     try:
-        tree = etree.fromstring(bytes(xml, 'utf-8'), parser=parser)
+        tree = etree.fromstring(bytes(xml).encode('utf-8'), parser=parser)
     except etree.XMLSyntaxError:
         errors.errors = '<h1>Incorrect file supplied; please go back and select your binds file as per the instructions.<h1>'
         xml = '<root></root>'
-        tree = etree.fromstring(bytes(xml, 'utf-8'), parser=parser)
+        tree = etree.fromstring(bytes(xml).encode('utf-8'), parser=parser)
     
     physicalKeys = {}
     modifiers = {}
@@ -1001,7 +1012,7 @@ def saveReplayInfo(config, description, styling, displayGroups, devices, showKey
     replayInfo['deviceWarnings'] = errors.deviceWarnings
     replayInfo['styling'] = styling
     replayInfo['description'] = description
-    replayInfo['timestamp'] = datetime.datetime.now(datetime.timezone.utc)
+    replayInfo['timestamp'] = datetime.datetime.utcnow()
     replayInfo['devices'] = devices
     replayPath = config.pathWithSuffix('.replay')
     with replayPath.open('wb') as pickleFile:

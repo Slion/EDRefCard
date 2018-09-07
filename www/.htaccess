@@ -1,0 +1,7 @@
+Options -Indexes
+
+RewriteEngine On 
+RewriteRule ^/list$ /scripts/bindings.cgi?list=all [L]
+RewriteRule ^/binds/(.+)$ /scripts/bindings.cgi?replay=$1 [L]
+RewriteRule ^/configs/([a-z][a-z])([^/]+)$ /configs/$1/$1$2 [L]
+
